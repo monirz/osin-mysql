@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/RangelReale/osin"
 	"github.com/ansel1/merry"
 	"github.com/felipeweb/gopher-utils"
 	"github.com/jmoiron/sqlx"
+	"github.com/monirz/osin"
 	// driver for mysql db
 	_ "github.com/go-sql-driver/mysql"
 )
