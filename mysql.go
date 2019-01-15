@@ -11,6 +11,7 @@ import (
 	"github.com/RangelReale/osin"
 	"github.com/ansel1/merry"
 	"github.com/felipeweb/gopher-utils"
+	"github.com/jmoiron/sqlx"
 	// driver for mysql db
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -54,12 +55,12 @@ var schemas = []string{`CREATE TABLE IF NOT EXISTS {prefix}client (
 
 // Storage implements interface "github.com/RangelReale/osin".Storage and interface "github.com/felipeweb/osin-mysql/storage".Storage
 type Storage struct {
-	db          *sql.DB
+	db          *sqlx.DB
 	tablePrefix string
 }
 
 // New returns a new mysql storage instance.
-func New(db *sql.DB, tablePrefix string) *Storage {
+func New(db *sqlx.DB, tablePrefix string) *Storage {
 	return &Storage{db, tablePrefix}
 }
 
@@ -89,7 +90,7 @@ func (s *Storage) Close() {
 
 // GetClient loads the client by id
 func (s *Storage) GetClient(id string) (osin.Client, error) {
-	row := s.db.QueryRow(fmt.Sprintf("SELECT id, secret, redirect_uri, extra FROM %sclient WHERE id=?", s.tablePrefix), id)
+	row := s.db.QueryRow(fmt.Sprintf("SELECT id, secret, redirect_uri, extra FROM %sclients WHERE id=?", s.tablePrefix), id)
 	var c osin.DefaultClient
 	var extra string
 
@@ -106,7 +107,7 @@ func (s *Storage) GetClient(id string) (osin.Client, error) {
 func (s *Storage) UpdateClient(c osin.Client) error {
 	data := gopher_utils.ToStr(c.GetUserData())
 
-	if _, err := s.db.Exec(fmt.Sprintf("UPDATE %sclient SET secret=?, redirect_uri=?, extra=? WHERE id=?", s.tablePrefix), c.GetSecret(), c.GetRedirectUri(), data, c.GetId()); err != nil {
+	if _, err := s.db.Exec(fmt.Sprintf("UPDATE %sclients SET secret=?, redirect_uri=?, extra=? WHERE id=?", s.tablePrefix), c.GetSecret(), c.GetRedirectUri(), data, c.GetId()); err != nil {
 		return merry.Wrap(err)
 	}
 	return nil
@@ -116,7 +117,7 @@ func (s *Storage) UpdateClient(c osin.Client) error {
 func (s *Storage) CreateClient(c osin.Client) error {
 	data := gopher_utils.ToStr(c.GetUserData())
 
-	if _, err := s.db.Exec(fmt.Sprintf("INSERT INTO %sclient (id, secret, redirect_uri, extra) VALUES (?, ?, ?, ?)", s.tablePrefix), c.GetId(), c.GetSecret(), c.GetRedirectUri(), data); err != nil {
+	if _, err := s.db.Exec(fmt.Sprintf("INSERT INTO %sclients (id, secret, redirect_uri, extra) VALUES (?, ?, ?, ?)", s.tablePrefix), c.GetId(), c.GetSecret(), c.GetRedirectUri(), data); err != nil {
 		return merry.Wrap(err)
 	}
 	return nil
@@ -124,7 +125,7 @@ func (s *Storage) CreateClient(c osin.Client) error {
 
 // RemoveClient removes a client (identified by id) from the database. Returns an error if something went wrong.
 func (s *Storage) RemoveClient(id string) (err error) {
-	if _, err = s.db.Exec(fmt.Sprintf("DELETE FROM %sclient WHERE id=?", s.tablePrefix), id); err != nil {
+	if _, err = s.db.Exec(fmt.Sprintf("DELETE FROM %sclients WHERE id=?", s.tablePrefix), id); err != nil {
 		return merry.Wrap(err)
 	}
 	return nil
@@ -197,16 +198,16 @@ func (s *Storage) RemoveAuthorize(code string) (err error) {
 // SaveAccess writes AccessData.
 // If RefreshToken is not blank, it must save in a way that can be loaded using LoadRefresh.
 func (s *Storage) SaveAccess(data *osin.AccessData) (err error) {
-	prev := ""
-	authorizeData := &osin.AuthorizeData{}
+	// prev := ""
+	// authorizeData := &osin.AuthorizeData{}
 
-	if data.AccessData != nil {
-		prev = data.AccessData.AccessToken
-	}
-
-	if data.AuthorizeData != nil {
-		authorizeData = data.AuthorizeData
-	}
+	// if data.AccessData != nil {
+	// 	prev = data.AccessData.AccessToken
+	// }
+	//
+	// if data.AuthorizeData != nil {
+	// 	authorizeData = data.AuthorizeData
+	// }
 
 	extra := gopher_utils.ToStr(data.UserData)
 
@@ -225,7 +226,7 @@ func (s *Storage) SaveAccess(data *osin.AccessData) (err error) {
 		return merry.New("data.Client must not be nil")
 	}
 
-	_, err = tx.Exec(fmt.Sprintf("INSERT INTO %saccess (client, authorize, previous, access_token, refresh_token, expires_in, scope, redirect_uri, created_at, extra) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", s.tablePrefix), data.Client.GetId(), authorizeData.Code, prev, data.AccessToken, data.RefreshToken, data.ExpiresIn, data.Scope, data.RedirectUri, data.CreatedAt, extra)
+	_, err = tx.Exec(fmt.Sprintf("INSERT INTO %saccess (client, access_token, refresh_token, expires_in, scope, redirect_uri, created_at, extra) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", s.tablePrefix), data.Client.GetId(), data.AccessToken, data.RefreshToken, data.ExpiresIn, data.Scope, data.RedirectUri, data.CreatedAt, extra)
 	if err != nil {
 		if rbe := tx.Rollback(); rbe != nil {
 			return merry.Wrap(rbe)
@@ -233,12 +234,13 @@ func (s *Storage) SaveAccess(data *osin.AccessData) (err error) {
 		return merry.Wrap(err)
 	}
 
-	if err = s.AddExpireAtData(data.AccessToken, data.ExpireAt()); err != nil {
-		return merry.Wrap(err)
-	}
-	if err = tx.Commit(); err != nil {
-		return merry.Wrap(err)
-	}
+	log.Println("debug error ", err)
+	// if err = s.AddExpireAtData(data.AccessToken, data.ExpireAt()); err != nil {
+	// 	return merry.Wrap(err)
+	// }
+	// if err = tx.Commit(); err != nil {
+	// 	return merry.Wrap(err)
+	// }
 
 	return nil
 }
