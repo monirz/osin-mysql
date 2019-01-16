@@ -209,7 +209,7 @@ func (s *Storage) SaveAccess(data *osin.AccessData) (err error) {
 	// 	authorizeData = data.AuthorizeData
 	// }
 
-	extra := gopher_utils.ToStr(data.UserData)
+	userID := gopher_utils.ToStr(data.UserData)
 
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -226,7 +226,8 @@ func (s *Storage) SaveAccess(data *osin.AccessData) (err error) {
 		return merry.New("data.Client must not be nil")
 	}
 
-	_, err = tx.Exec(fmt.Sprintf("INSERT INTO %saccess (client, access_token, refresh_token, expires_in, scope, redirect_uri, created_at, extra) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", s.tablePrefix), data.Client.GetId(), data.AccessToken, data.RefreshToken, data.ExpiresIn, data.Scope, data.RedirectUri, data.CreatedAt, extra)
+	_, err = tx.Exec(fmt.Sprintf("INSERT INTO %saccess (client, user_id, access_token, refresh_token, expires_in, scope, redirect_uri, created_at, extra) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", s.tablePrefix), data.Client.GetId(), userID, data.AccessToken, data.RefreshToken, data.ExpiresIn, data.Scope, data.RedirectUri, data.CreatedAt, "")
+	log.Println("debug db err", err)
 	if err != nil {
 		if rbe := tx.Rollback(); rbe != nil {
 			return merry.Wrap(rbe)
@@ -238,9 +239,9 @@ func (s *Storage) SaveAccess(data *osin.AccessData) (err error) {
 	// if err = s.AddExpireAtData(data.AccessToken, data.ExpireAt()); err != nil {
 	// 	return merry.Wrap(err)
 	// }
-	// if err = tx.Commit(); err != nil {
-	// 	return merry.Wrap(err)
-	// }
+	if err = tx.Commit(); err != nil {
+		return merry.Wrap(err)
+	}
 
 	return nil
 }
